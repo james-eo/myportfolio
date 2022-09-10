@@ -1,0 +1,188 @@
+--- creating tables in postgresql database
+
+CREATE TABLE public."dailyactivity"(
+    Id bigint, ActivityDate date not null, 
+    TotalSteps int, TotalDistance float, 
+    TrackerDistance float, LoggedActivitiesDistance float, 
+    VeryActiveDistance float, ModeratelyActiveDistance float, 
+    LightActiveDistance float, SedentaryActiveDistance	float, 
+    VeryActiveMinutes	int, FairlyActiveMinutes int, 
+    LightlyActiveMinutes int, SedentaryMinutes	int, Calories int)
+
+
+CREATE TABLE public."sleepday_merged"(
+    Id bigint, 
+    SleepDay varchar,
+    TotalSleepRecords int, 
+    TotalMinutesAsleep int, 
+    TotalTimeInBed int)
+    
+CREATE TABLE public."weightloginfo_merged"(
+    Id bigint, Date varchar(100),	
+    WeightKg float, WeightPounds float, 
+    Fat int, BMI float, 
+    IsManualReport boolean, LogId bigint)
+
+--- importing csv files into postgresql database tables
+
+COPY public."sleepday_merged" 
+FROM '/home/ejiks/bellabeat/csv files/sleepDay_merged.csv' 
+DELIMITER ',' 
+CSV HEADER;
+
+COPY public."weightloginfo_merged" 
+FROM '/home/ejiks/bellabeat/csv files/weightLogInfo_merged.csv' 
+DELIMITER ',' 
+CSV HEADER;
+
+COPY public."dailyactivity" 
+FROM '/home/ejiks/bellabeat/csv files/dailyActivity_merged.csv' 
+DELIMITER ',' 
+CSV HEADER;
+
+--- reading the data.
+
+SELECT * from public."sleepday_merged"
+SELECT * from public."dailyactivity_merged"
+SELECT * from public."weightloginfo_merged"
+
+
+/* DATA CLEANING
+At this point, I will check for duplicates in the tables 
+and delete them if any exists*/
+
+SELECT *, count(*)
+FROM sleepday_merged
+GROUP BY Id, SleepDay,
+    TotalSleepRecords, TotalMinutesAsleep,
+    TotalTimeInBed
+HAVING COUNT(*) > 1
+
+SELECT *, count(*)
+FROM weightloginfo_merged
+GROUP BY Id, Date, 
+    WeightKg, WeightPounds, Fat, 
+    BMI, IsManualReport, 
+    LogId
+HAVING COUNT(*) > 1
+
+SELECT *, count(*)
+FROM dailyactivity_merged
+GROUP BY Id, ActivityDate, TotalSteps, TotalDistance, TrackerDistance, 
+    LoggedActivitiesDistance, VeryActiveDistance, ModeratelyActiveDistance, 
+    LightActiveDistance, SedentaryActiveDistance, VeryActiveMinutes, 
+    FairlyActiveMinutes, LightlyActiveMinutes, SedentaryMinutes, 
+    Calories
+HAVING COUNT(*) > 1
+
+ /* OBSERVATIONS 
+ There are three(3) duplicate rows in the 'sleepday_merged table'.
+ There are no duplicate rows in 'dailyactivity_merged' and 'weightlonginfo_merged tables'*/
+ 
+ -- CHECKING FOR NULL VALUES
+ 
+SELECT *
+FROM weightloginfo_merged
+WHERE Fat IS NULL 
+
+--- Observations, 65 rows in the 'weightloginfo_merged' table have NULL values in the 'FAT' column.
+
+/* Removing duplicates. I will remove duplicates from 'sleepday_merged' 
+table by creating a new table 'sleepday_cleaned' with distict values from 'sleepday_merged' table. Reason is to keep the original data*/
+
+create table sleepday as
+select distinct Id, SleepDay,
+    TotalSleepRecords, TotalMinutesAsleep,
+    TotalTimeInBed
+from sleepday_merged
+
+-- OR 
+
+SELECT DISTINCT Id, SleepDay,
+    TotalSleepRecords, TotalMinutesAsleep,
+    TotalTimeInBed
+INTO sleepday
+FROM sleepday_merged
+order by id
+
+-- checking new table
+
+SELECT *, count(*)
+FROM sleepday
+GROUP BY Id, SleepDay,
+    TotalSleepRecords, TotalMinutesAsleep,
+    TotalTimeInBed
+HAVING COUNT(*) > 1
+
+---Confirming cleaned tables 
+
+select * from sleepday
+    order by sleepday
+SELECT * from public."sleepday_merged"
+SELECT * from public."dailyactivity_merged"
+SELECT * from public."weightloginfo_merged"
+
+
+-- ANALYSIS
+select sum(totalsteps)
+from dailyactivity_merged
+where id = 1624580081
+
+select id, sum(calories) / count(id), sum(totalsteps)/count(id)
+from dailyactivity_merged
+group by id
+select id, sum(totalsteps), sum(calories)
+from dailyactivity_merged
+group by id, calories
+order by id desc
+
+select distinct(id)
+from dailyactivity_merged
+
+select avg(totalsteps)
+from dailyactivity_merged
+
+select avg(calories)
+from dailyactivity_merged
+
+select avg(totalminutesasleep)
+from sleepday_cleaned
+
+select avg(weightkg)
+from dailyactivity_merged
+
+--converting sleep minutes to hours in a new column 'hoursasleep' in sleepday
+alter table sleepday
+add column "hoursasleep" decimal
+update sleepday set hoursasleep = (select totalminutesasleep/60)
+-- checking for users who slept from 7 to 8 hours 
+
+select count(id)
+from sleepday_cleaned
+where hoursasleep between 7 and 9
+-- checking for users who slept less than 7 hours daily
+select count(id)
+from sleepday_cleaned
+where hoursasleep < 7
+-- checking for users who slept more than 9 hours daily
+select count(id)
+from sleepday_cleaned
+where hoursasleep > 9
+
+select id, sum(totalsteps), sum(calories)
+from dailyactivity_merged
+where id = 1624580081
+group by id
+
+-- calculating sleep hours per user
+
+SELECT AVG(totalminutesasleep)/60
+from sleepday_cleaned
+--    OR
+select avg(hoursasleep)
+from sleepday_cleaned
+
+select id, totalminutesasleep,
+    sleepday, totalminutesinbed
+from sleepday 
+where sleepday 
